@@ -1,10 +1,17 @@
+import hashlib
+import logging
+import uuid
+
 import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
+from hitfactorpy.parsers.match_report.models import ParsedCompetitor, ParsedMatchReport, ParsedStage
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
 from sqlalchemy_continuum import make_versioned
+
+_logger = logging.getLogger(__name__)
 
 make_versioned(user_cls=None)
 
@@ -70,14 +77,27 @@ class VersionedModel(BaseModel):  # , MixinVersioned):
 
 
 SAEnumMatchLevel = sa.Enum(MatchLevel, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportMatchLevel")
+SAEnumDivision = sa.Enum(Division, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorDivision")
+SAEnumClassification = sa.Enum(
+    Classification, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorClassification"
+)
+SAEnumPowerFactor = sa.Enum(PowerFactor, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorPowerFactor")
+SAEnumScoring = sa.Enum(Scoring, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportStageScoring")
 
 
 class MatchReport(VersionedModel):
+    """Parsed contents of a match report"""
 
     # Columns
     name = sa.Column(sa.Unicode(255), nullable=False)
     date = sa.Column(sa.Date)
     match_level = sa.Column(SAEnumMatchLevel)
+    report_hash = sa.Column(
+        UUID(as_uuid=True),
+        nullable=True,
+        unique=True,
+        comment="This represents an md5 hexdigest, stored as a UUID. Used to identify potential duplicate report imports.",
+    )
 
     # Relationships
     competitors: Mapped["MatchReportCompetitor"] = relationship(
@@ -102,19 +122,16 @@ class MatchReport(VersionedModel):
         primaryjoin="MatchReport.id==MatchReportStageScore.match_id",
     )
 
-
-SAEnumDivision = sa.Enum(Division, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorDivision")
-SAEnumClassification = sa.Enum(
-    Classification, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorClassification"
-)
-SAEnumPowerFactor = sa.Enum(PowerFactor, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportCompetitorPowerFactor")
+    # Validators
+    @validates("report_hash")
+    def validate_report_hash(self, key, value):
+        if value and isinstance(value, str) and len(value) == 32:
+            return uuid.UUID(hashlib.md5(value.encode()).hexdigest())
+        _logger.warning("report_hash('%s') failed validation: '%s'", key, value)
+        return None
 
 
 class MatchReportCompetitor(VersionedModel):
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    uuid = sa.Column(
-        UUID(as_uuid=True), nullable=False, unique=True, index=True, server_default=sa.text("gen_random_uuid()")
-    )
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
     member_number = sa.Column(sa.Unicode(64))
@@ -131,14 +148,7 @@ class MatchReportCompetitor(VersionedModel):
     stage_scores: Mapped["MatchReportStageScore"] = relationship("MatchReportStageScore", back_populates="competitor")
 
 
-SAEnumScoring = sa.Enum(Scoring, create_constraint=True, name=f"{ENUM_PREFIX}MatchReportStageScoring")
-
-
 class MatchReportStage(VersionedModel):
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    uuid = sa.Column(
-        UUID(as_uuid=True), nullable=False, unique=True, index=True, server_default=sa.text("gen_random_uuid()")
-    )
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
     name = sa.Column(sa.Unicode(255))
@@ -146,6 +156,7 @@ class MatchReportStage(VersionedModel):
     max_points = sa.Column(sa.Integer, nullable=False)
     classifier = sa.Column(sa.Boolean, nullable=False, default=False)
     classifier_number = sa.Column(sa.Unicode(64))
+    stage_number = sa.Column(sa.Integer)
     scoring_type = sa.Column(
         SAEnumScoring,
         nullable=False,
@@ -171,12 +182,13 @@ class MatchReportStage(VersionedModel):
     def validate_max_points(self, key, value):
         return _validate_positive_int(value, key)
 
+    # Constraints
+    __table_args__ = (
+        (sa.UniqueConstraint("match_id", "stage_number", name="stage_score_stage_number_unique_per_match")),
+    )
+
 
 class MatchReportStageScore(VersionedModel):
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    uuid = sa.Column(
-        UUID(as_uuid=True), nullable=False, unique=True, index=True, server_default=sa.text("gen_random_uuid()")
-    )
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
     competitor_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReportCompetitor.id, ondelete="CASCADE"), nullable=False)
