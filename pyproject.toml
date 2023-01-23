@@ -14,6 +14,11 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11"
 ]
+include = [
+  "hitfactorpy_sqlalchemy/alembic.ini",
+  "hitfactorpy_sqlalchemy/migrations/README",
+  "hitfactorpy_sqlalchemy/migrations/script.py.mako",
+]
 
 [tool.poetry.scripts]
 hitfactorpy-sqlalchemy = 'hitfactorpy_sqlalchemy.cli:cli'
