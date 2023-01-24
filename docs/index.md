@@ -1,16 +1,18 @@
 # hitfactorpy_sqlalchemy
 
-[![Main](https://github.com/cahna/hitfactorpy_sqlalchemy/actions/workflows/main.yaml/badge.svg)](https://github.com/cahna/hitfactorpy_sqlalchemy/actions/workflows/main.yaml)
+[![Main](https://github.com/cahna/hitfactorpy-sqlalchemy/actions/workflows/main.yaml/badge.svg)](https://github.com/cahna/hitfactorpy-sqlalchemy/actions/workflows/main.yaml)
 
-Manage practical match reports with SQLAlchemy
+Manage practical match reports in a database with SQLAlchemy
 
 ## Status
 
 **Work in progress...**
 
-## Usage
+## CLI Usage
 
-1. Run migrations on a database to create tables and types:
+The default database connection string is `postgresql+asyncpg://postgres:postgres@localhost/hitfactorpy`. Changes to connection settings are made via `--sqlalchemy-url` option, or by setting `HITFACTORPY_SQLALCHEMY_URL` environment variable.
+
+1. Run migrations on an empty database to create tables and types:
     ```console
     $ hitfactorpy-sqlalchemy migrate upgrade
     ```

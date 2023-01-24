@@ -38,6 +38,7 @@ def match_report(
 
         engine = create_async_engine(sqlalchemy_url)
         Session = sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
+
         async with Session() as session:
             match_report = MatchReport(
                 name=parsed_match_report.name,
@@ -48,63 +49,66 @@ def match_report(
             session.add(match_report)
 
             competitors: Dict[int, MatchReportCompetitor] = {}
-            for c in parsed_match_report.competitors:
-                competitor_model = MatchReportCompetitor(
-                    member_number=c.member_number,
-                    first_name=c.first_name,
-                    last_name=c.last_name,
-                    division=c.division,
-                    power_factor=c.power_factor,
-                    classification=c.classification,
-                    dq=c.dq,
-                    reentry=c.reentry,
-                    match=match_report,
-                )
-                session.add(competitor_model)
-                competitors[c.internal_id] = competitor_model
+            if parsed_match_report.competitors:
+                for c in parsed_match_report.competitors:
+                    competitor_model = MatchReportCompetitor(
+                        member_number=c.member_number,
+                        first_name=c.first_name,
+                        last_name=c.last_name,
+                        division=c.division,
+                        power_factor=c.power_factor,
+                        classification=c.classification,
+                        dq=c.dq,
+                        reentry=c.reentry,
+                        match=match_report,
+                    )
+                    session.add(competitor_model)
+                    competitors[c.internal_id] = competitor_model
 
-            stages: Dict[int, MatchReportCompetitor] = {}
-            for s in parsed_match_report.stages:
-                stage_model = MatchReportStage(
-                    name=s.name,
-                    min_rounds=s.min_rounds,
-                    max_points=s.max_points,
-                    classifier=s.classifier,
-                    classifier_number=s.classifier_number,
-                    scoring_type=s.scoring_type,
-                    stage_number=s.internal_id,
-                    match=match_report,
-                )
-                session.add(stage_model)
-                stages[s.internal_id] = stage_model
+            stages: Dict[int, MatchReportStage] = {}
+            if parsed_match_report.stages:
+                for s in parsed_match_report.stages:
+                    stage_model = MatchReportStage(
+                        name=s.name,
+                        min_rounds=s.min_rounds,
+                        max_points=s.max_points,
+                        classifier=s.classifier,
+                        classifier_number=s.classifier_number,
+                        scoring_type=s.scoring_type,
+                        stage_number=s.internal_id,
+                        match=match_report,
+                    )
+                    session.add(stage_model)
+                    stages[s.internal_id] = stage_model
 
-            for sc in parsed_match_report.stage_scores:
-                stage_score_model = MatchReportStageScore(
-                    a=sc.a,
-                    b=sc.b,
-                    c=sc.c,
-                    d=sc.d,
-                    m=sc.m,
-                    npm=sc.npm,
-                    ns=sc.ns,
-                    procedural=sc.procedural,
-                    late_shot=sc.late_shot,
-                    extra_shot=sc.extra_shot,
-                    extra_hit=sc.extra_hit,
-                    other_penalty=sc.other_penalty,
-                    t1=sc.t1,
-                    t2=sc.t2,
-                    t3=sc.t3,
-                    t4=sc.t4,
-                    t5=sc.t5,
-                    time=sc.time,
-                    dq=sc.dq,
-                    dnf=sc.dnf,
-                    match=match_report,
-                    competitor=competitors[sc.competitor_id],
-                    stage=stages[sc.stage_id],
-                )
-                session.add(stage_score_model)
+            if parsed_match_report.stage_scores:
+                for sc in parsed_match_report.stage_scores:
+                    stage_score_model = MatchReportStageScore(
+                        a=sc.a,
+                        b=sc.b,
+                        c=sc.c,
+                        d=sc.d,
+                        m=sc.m,
+                        npm=sc.npm,
+                        ns=sc.ns,
+                        procedural=sc.procedural,
+                        late_shot=sc.late_shot,
+                        extra_shot=sc.extra_shot,
+                        extra_hit=sc.extra_hit,
+                        other_penalty=sc.other_penalty,
+                        t1=sc.t1,
+                        t2=sc.t2,
+                        t3=sc.t3,
+                        t4=sc.t4,
+                        t5=sc.t5,
+                        time=sc.time,
+                        dq=sc.dq,
+                        dnf=sc.dnf,
+                        match=match_report,
+                        competitor=competitors[sc.competitor_id or -1],
+                        stage=stages[sc.stage_id or -1],
+                    )
+                    session.add(stage_score_model)
 
             typer.echo("Committing changes...")
             await session.commit()
