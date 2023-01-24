@@ -5,7 +5,6 @@ import uuid
 import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
-from hitfactorpy.parsers.match_report.models import ParsedCompetitor, ParsedMatchReport, ParsedStage
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore

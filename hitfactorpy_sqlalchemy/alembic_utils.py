@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
 
 from .defaults import HITFACTORPY_ALEMBIC_DIR, HITFACTORPY_SQLALCHEMY_URL
