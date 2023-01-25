@@ -125,7 +125,7 @@ class MatchReport(VersionedModel):
     @validates("report_hash")
     def validate_report_hash(self, key, value):
         if value and isinstance(value, str) and len(value) == 32:
-            return uuid.UUID(hashlib.md5(value.encode()).hexdigest())
+            return uuid.UUID(value)
         _logger.warning("report_hash('%s') failed validation: '%s'", key, value)
         return None
 

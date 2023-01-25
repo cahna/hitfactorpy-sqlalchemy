@@ -12,24 +12,6 @@ def docker_compose_file(pytestconfig):
     return str(dc_file)
 
 
-def ping_postgres(url):
-    print(f"ping_postgres: {url}")
-    try:
-
-        async def postgres_pinger():
-            try:
-                conn = await asyncpg.connect(url)
-                await conn.execute("SELECT 1;")
-                await conn.close()
-                return True
-            except Exception:
-                return False
-
-        return asyncio.run(postgres_pinger())
-    except Exception:
-        return False
-
-
 @pytest.fixture(scope="session")
 def hitfactorpy_postgres_user() -> str:
     return "postgres"
@@ -37,7 +19,7 @@ def hitfactorpy_postgres_user() -> str:
 
 @pytest.fixture(scope="session")
 def hitfactorpy_postgres_password() -> str:
-    return "postgres"
+    return ""
 
 
 @pytest.fixture(scope="session")
@@ -63,12 +45,55 @@ def hitfactory_postgres_url(
     hitfactorpy_postgres_hostname,
 ):
     """Postgres URL without protocol prefix"""
-    return f"{hitfactorpy_postgres_user}:{hitfactorpy_postgres_password}@{hitfactorpy_postgres_hostname}/{hitfactorpy_postgres_database}"
+    credentials = hitfactorpy_postgres_user + (
+        f":{hitfactorpy_postgres_password}" if hitfactorpy_postgres_password else ""
+    )
+    return f"{credentials}@{hitfactorpy_postgres_hostname}/{hitfactorpy_postgres_database}"
+
+
+@pytest.fixture
+def ping_postgres(hitfactory_postgres_url):
+    def pinger_fn() -> bool:
+        nonlocal hitfactory_postgres_url
+        print(f"ping_postgres: {hitfactory_postgres_url}")
+        try:
+
+            async def postgres_pinger(purl):
+                try:
+                    print(f"connecting to postgres: {purl}")
+                    conn = await asyncpg.connect(purl)
+                    r1 = await conn.execute("SELECT 1;")
+                    print(r1)
+                    result = await conn.fetchrow(
+                        """SELECT EXISTS (
+SELECT FROM
+    pg_tables
+WHERE
+    schemaname = 'public' AND
+    tablename  = 'hitfactorpy_test'
+);"""
+                    )
+                    import pdb
+
+                    pdb.set_trace()
+                    print(result)
+
+                    await conn.close()
+                    # assert result.EIEIO
+                    return True
+                except Exception:
+                    return False
+
+            return bool(asyncio.run(postgres_pinger(f"postgresql://{hitfactory_postgres_url}")))
+        except Exception:
+            return False
+
+    return pinger_fn
 
 
 @pytest.fixture(scope="session")
-def postgres_service(docker_services):
+def postgres_service(docker_services, hitfactory_postgres_url, ping_postgres):
     """Ensure that postgres is up and responsive"""
-    url = f"postgres://{hitfactory_postgres_url}"
-    docker_services.wait_until_responsive(timeout=30.0, pause=0.1, check=lambda: ping_postgres(url))
+    url = f"postgresql://{hitfactory_postgres_url}"
+    docker_services.wait_until_responsive(timeout=30.0, pause=0.1, check=ping_postgres)
     return url
