@@ -1,0 +1,13 @@
+from .base import Plugin as Plugin
+from _typeshed import Incomplete
+
+flask: Incomplete
+
+def fetch_current_user_id(): ...
+def fetch_remote_addr(): ...
+
+class FlaskPlugin(Plugin):
+    current_user_id_factory: Incomplete
+    remote_addr_factory: Incomplete
+    def __init__(self, current_user_id_factory: Incomplete | None = ..., remote_addr_factory: Incomplete | None = ...) -> None: ...
+    def transaction_args(self, uow, session): ...
