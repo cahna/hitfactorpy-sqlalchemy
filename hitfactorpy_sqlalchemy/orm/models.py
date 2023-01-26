@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import uuid
 
@@ -6,6 +5,7 @@ import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
 from sqlalchemy_continuum import make_versioned
@@ -219,6 +219,35 @@ class MatchReportStageScore(VersionedModel):
         MatchReportCompetitor, uselist=False, back_populates="stage_scores"
     )
     stage: Mapped[MatchReportStage] = relationship(MatchReportStage, uselist=False, back_populates="stage_scores")
+
+    @hybrid_property
+    def calculated_hit_factor(self):
+        return (
+            self.a * 5
+            + (self.c * (4 if self.competitor.power_factor == PowerFactor.MAJOR else 3))
+            + (self.d * (2 if self.competitor.power_factor == PowerFactor.MAJOR else 1))
+            + (self.ns * -10)
+            + (self.procedural * -10)
+            + (self.other_penalty * -1)
+        ) / (self.time or 1)
+
+    @calculated_hit_factor.expression  # type: ignore
+    def calculated_hit_factor(cls):
+        return (
+            sa.select(
+                (
+                    cls.a * 5
+                    + cls.c * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3)
+                    + cls.d * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1)
+                    + (cls.ns * -10)
+                    + (cls.procedural * -10)
+                    + (cls.other_penalty * -1)
+                )
+                / sa.case((cls.time > 0, cls.time), else_=1)
+            )
+            .where(MatchReportCompetitor.id == cls.competitor_id)
+            .label("calculated_hit_factor")
+        )
 
     # Validators
     @validates("a")

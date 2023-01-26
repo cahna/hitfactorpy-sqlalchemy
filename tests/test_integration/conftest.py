@@ -1,8 +1,8 @@
-import asyncio
 from pathlib import Path
 
-import asyncpg
+import psycopg2
 import pytest
+from sqlalchemy.engine.url import make_url
 
 
 @pytest.fixture(scope="session")
@@ -51,49 +51,44 @@ def hitfactory_postgres_url(
     return f"{credentials}@{hitfactorpy_postgres_hostname}/{hitfactorpy_postgres_database}"
 
 
-@pytest.fixture
-def ping_postgres(hitfactory_postgres_url):
-    def pinger_fn() -> bool:
-        nonlocal hitfactory_postgres_url
-        print(f"ping_postgres: {hitfactory_postgres_url}")
-        try:
-
-            async def postgres_pinger(purl):
-                try:
-                    print(f"connecting to postgres: {purl}")
-                    conn = await asyncpg.connect(purl)
-                    r1 = await conn.execute("SELECT 1;")
-                    print(r1)
-                    result = await conn.fetchrow(
-                        """SELECT EXISTS (
+def ping_postgres(db_url):
+    conn = None
+    try:
+        parsed_url = make_url(db_url)
+        conn = psycopg2.connect(
+            database=parsed_url.database,
+            user=parsed_url.username,
+            password=parsed_url.password,
+            host=parsed_url.host,
+            port=parsed_url.port,
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT 1;")
+        result = cur.fetchone()
+        if result and result[0] == 1:
+            conn.execute(
+                """SELECT EXISTS (
 SELECT FROM
     pg_tables
 WHERE
     schemaname = 'public' AND
     tablename  = 'hitfactorpy_test'
 );"""
-                    )
-                    import pdb
-
-                    pdb.set_trace()
-                    print(result)
-
-                    await conn.close()
-                    # assert result.EIEIO
-                    return True
-                except Exception:
-                    return False
-
-            return bool(asyncio.run(postgres_pinger(f"postgresql://{hitfactory_postgres_url}")))
-        except Exception:
-            return False
-
-    return pinger_fn
+            )
+            result2 = cur.fetchone()
+            if result2 and result2[0]:
+                return True
+        return False
+    except Exception:
+        return False
+    finally:
+        if conn and hasattr(conn, "close"):
+            conn.close()
 
 
 @pytest.fixture(scope="session")
-def postgres_service(docker_services, hitfactory_postgres_url, ping_postgres):
+def postgres_service(docker_services, hitfactory_postgres_url):
     """Ensure that postgres is up and responsive"""
     url = f"postgresql://{hitfactory_postgres_url}"
-    docker_services.wait_until_responsive(timeout=30.0, pause=0.1, check=ping_postgres)
-    return url
+    docker_services.wait_until_responsive(timeout=10.0, pause=0.1, check=lambda: ping_postgres(url))
+    return hitfactory_postgres_url
