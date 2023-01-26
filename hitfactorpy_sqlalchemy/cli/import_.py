@@ -169,6 +169,11 @@ def match_report(
         if parsed_match_report.stage_scores:
             for sc in parsed_match_report.stage_scores:
                 stage_score_model = MatchReportStageScore(  # type: ignore
+                    match=match_report,
+                    competitor=competitors[sc.competitor_id or -1],
+                    stage=stages[sc.stage_id or -1],
+                    dq=sc.dq,
+                    dnf=sc.dnf,
                     a=sc.a,
                     b=sc.b,
                     c=sc.c,
@@ -187,11 +192,13 @@ def match_report(
                     t4=sc.t4,
                     t5=sc.t5,
                     time=sc.time,
-                    dq=sc.dq,
-                    dnf=sc.dnf,
-                    match=match_report,
-                    competitor=competitors[sc.competitor_id or -1],
-                    stage=stages[sc.stage_id or -1],
+                    raw_points=sc.raw_points,
+                    penalty_points=sc.penalty_points,
+                    total_points=sc.total_points,
+                    hit_factor=sc.hit_factor,
+                    stage_points=sc.stage_points,
+                    stage_place=sc.stage_place,
+                    stage_power_factor=sc.stage_power_factor,
                 )
                 session.add(stage_score_model)
 
