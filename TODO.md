@@ -1,0 +1,2 @@
+- [ ] Refactor all `float` to `Decimal` and use `sqlalchemy.Numeric`
+- [ ] Custom scoring equations

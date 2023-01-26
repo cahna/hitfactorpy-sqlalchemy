@@ -88,14 +88,31 @@ def debug(ctx: typer.Context):
         stmt = sa.select(MatchReport)
         result = session.execute(stmt)
         match_report = result.fetchone()[0]
-        print(match_report)
+        typer.echo(match_report)
 
-        breakpoint()
+        num_stage_scores = session.query(sa.func.count(MatchReportStageScore.id)).scalar()
+        print(f"total scores: {num_stage_scores}")
 
-        stmt2 = sa.select(MatchReportStageScore).filter(MatchReportStageScore.calculated_hit_factor > 8.0)  # type: ignore
+        stmt2 = sa.select(MatchReportStageScore).where(MatchReportStageScore.calculated_hit_factor > 8.0)  # type: ignore
         result2 = session.execute(stmt2)
         scores_gt_8 = [r[0] for r in result2.fetchall()]
-        print(scores_gt_8)
+        print(f"scores >=8: {len(scores_gt_8)}")
+        score = scores_gt_8[0]
+        typer.echo(score)
+
+        stmt3 = sa.select(MatchReportStageScore).where(
+            MatchReportStageScore.calculated_hit_factor != MatchReportStageScore.hit_factor
+        )
+        result3 = session.execute(stmt3)
+        scores3 = [r[0] for r in result3.fetchall()]
+        print(len(scores3))
+
+        stmt4 = sa.select(MatchReportStageScore).where(
+            MatchReportStageScore.calculated_hit_factor == MatchReportStageScore.hit_factor
+        )
+        result4 = session.execute(stmt4)
+        scores4 = [r[0] for r in result4.fetchall()]
+        print(len(scores4))
 
         breakpoint()
 
