@@ -1,4 +1,3 @@
-import decimal
 import hashlib
 import sys
 from dataclasses import dataclass
