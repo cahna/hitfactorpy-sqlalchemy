@@ -1,3 +1,4 @@
+import decimal
 import logging
 import uuid
 
@@ -5,9 +6,13 @@ import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
+from sqlalchemy.sql import case
+from sqlalchemy.sql.expression import FunctionElement  # type: ignore
+from sqlalchemy.types import Numeric
 from sqlalchemy_continuum import make_versioned
 
 _logger = logging.getLogger(__name__)
@@ -187,11 +192,34 @@ class MatchReportStage(VersionedModel):
     )
 
 
+class greatest(FunctionElement):
+    """See: https://docs.sqlalchemy.org/en/20/core/compiler.html#greatest-function"""
+
+    type = Numeric()
+    name = "greatest"
+    inherit_cache = True
+
+
+@compiles(greatest)
+def default_greatest(element, compiler, **kw):
+    return compiler.visit_function(element)
+
+
+@compiles(greatest, "sqlite")
+@compiles(greatest, "mssql")
+@compiles(greatest, "oracle")
+def case_greatest(element, compiler, **kw):
+    arg1, arg2 = list(element.clauses)
+    return compiler.process(case([(arg1 > arg2, arg1)], else_=arg2), **kw)
+
+
 class MatchReportStageScore(VersionedModel):
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
     competitor_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReportCompetitor.id, ondelete="CASCADE"), nullable=False)
     stage_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReportStage.id, ondelete="CASCADE"), nullable=False)
+    dq = sa.Column(sa.Boolean, nullable=False, default=False)
+    dnf = sa.Column(sa.Boolean, nullable=False, default=False)
     a = sa.Column(sa.Integer, nullable=False, default=0)
     b = sa.Column(sa.Integer, nullable=False, default=0)
     c = sa.Column(sa.Integer, nullable=False, default=0)
@@ -204,14 +232,31 @@ class MatchReportStageScore(VersionedModel):
     extra_shot = sa.Column(sa.Integer, nullable=False, default=0)
     extra_hit = sa.Column(sa.Integer, nullable=False, default=0)
     other_penalty = sa.Column(sa.Integer, nullable=False, default=0)
-    t1 = sa.Column(sa.Float, nullable=False, default=0.0)
-    t2 = sa.Column(sa.Float, nullable=False, default=0.0)
-    t3 = sa.Column(sa.Float, nullable=False, default=0.0)
-    t4 = sa.Column(sa.Float, nullable=False, default=0.0)
-    t5 = sa.Column(sa.Float, nullable=False, default=0.0)
-    time = sa.Column(sa.Float, nullable=False, default=0.0)
-    dq = sa.Column(sa.Boolean, nullable=False, default=False)
-    dnf = sa.Column(sa.Boolean, nullable=False, default=False)
+    t1 = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    t2 = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    t3 = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    t4 = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    t5 = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    time = sa.Column(
+        sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2), nullable=False, default=0.0
+    )
+    raw_points = sa.Column(sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2))
+    penalty_points = sa.Column(sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2))
+    total_points = sa.Column(sa.Numeric(precision=8, scale=2, asdecimal=True, decimal_return_scale=2))
+    hit_factor = sa.Column(sa.Numeric(precision=8, scale=4, asdecimal=True, decimal_return_scale=4))
+    stage_points = sa.Column(sa.Numeric(precision=8, scale=4, asdecimal=True, decimal_return_scale=4))
+    stage_place = sa.Column(sa.Integer)
+    stage_power_factor = sa.Column(SAEnumPowerFactor)
 
     # Relationships
     match: Mapped[MatchReport] = relationship(MatchReport, uselist=False, back_populates="stage_scores")
@@ -222,28 +267,64 @@ class MatchReportStageScore(VersionedModel):
 
     @hybrid_property
     def calculated_hit_factor(self):
-        return (
-            self.a * 5
-            + (self.c * (4 if self.competitor.power_factor == PowerFactor.MAJOR else 3))
-            + (self.d * (2 if self.competitor.power_factor == PowerFactor.MAJOR else 1))
-            + (self.ns * -10)
-            + (self.procedural * -10)
-            + (self.other_penalty * -1)
-        ) / (self.time or 1)
+        return decimal.Decimal(
+            max(
+                0.0,
+                0.0
+                if self.dq or self.dnf
+                else (
+                    self.a * 5
+                    + (self.c * (4 if self.competitor.power_factor == PowerFactor.MAJOR else 3))
+                    + (self.d * (2 if self.competitor.power_factor == PowerFactor.MAJOR else 1))
+                    + (self.m * -10)
+                    + (self.ns * -10)
+                    + (self.procedural * -10)
+                    + (self.other_penalty * -1)
+                    + (self.late_shot * -5)
+                    + (self.extra_shot * -10)
+                    + (self.extra_hit * -10)
+                )
+                / (self.time or 1),
+            )
+        ).quantize(decimal.Decimal(".0001"))
 
     @calculated_hit_factor.expression  # type: ignore
     def calculated_hit_factor(cls):
         return (
             sa.select(
-                (
-                    cls.a * 5
-                    + cls.c * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3)
-                    + cls.d * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1)
-                    + (cls.ns * -10)
-                    + (cls.procedural * -10)
-                    + (cls.other_penalty * -1)
+                greatest(
+                    sa.case(
+                        (
+                            sa.or_(cls.dq, cls.dnf),
+                            sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                        ),
+                        else_=sa.cast(
+                            (
+                                (
+                                    (cls.a * 5)
+                                    + (
+                                        cls.c
+                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3)
+                                    )
+                                    + (
+                                        cls.d
+                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1)
+                                    )
+                                    + (cls.m * -10)
+                                    + (cls.ns * -10)
+                                    + (cls.procedural * -10)
+                                    + (cls.other_penalty * -1)
+                                    + (cls.late_shot * -5)
+                                    + (cls.extra_shot * -10)
+                                    + (cls.extra_hit * -10)
+                                )
+                                / sa.case((cls.time > 0, cls.time), else_=1)
+                            ),
+                            sa.Numeric(precision=8, scale=4, decimal_return_scale=4),
+                        ),
+                    ),
+                    sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
                 )
-                / sa.case((cls.time > 0, cls.time), else_=1)
             )
             .where(MatchReportCompetitor.id == cls.competitor_id)
             .label("calculated_hit_factor")

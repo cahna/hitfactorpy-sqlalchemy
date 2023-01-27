@@ -1,0 +1,6 @@
+- [x] ~~Refactor all `float` to `Decimal` and use `sqlalchemy.Numeric`~~
+- [ ] Custom scoring equations
+- [x] ~~Calculate hitfactors in SQL~~
+- [ ] Add model methods for domain logic:
+  - [ ] calculate overall winner
+  - [ ] calculate division winners

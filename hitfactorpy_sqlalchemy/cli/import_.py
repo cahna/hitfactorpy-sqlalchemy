@@ -1,3 +1,4 @@
+import decimal
 import hashlib
 import sys
 from dataclasses import dataclass
@@ -60,7 +61,7 @@ def inject_shared_options(
     ctx.obj = CtxObj(
         db_connection=db_conn,
         sqlalchemy_url=str(
-            URL.create(
+            URL.create(  # type: ignore
                 db_conn.scheme,
                 username=db_conn.username,
                 password=db_conn.password,
@@ -88,14 +89,32 @@ def debug(ctx: typer.Context):
         stmt = sa.select(MatchReport)
         result = session.execute(stmt)
         match_report = result.fetchone()[0]
-        print(match_report)
+        typer.echo(match_report.name)
 
-        breakpoint()
+        num_stage_scores = session.query(sa.func.count(MatchReportStageScore.id)).scalar()
+        print(f"total scores: {num_stage_scores}")
 
-        stmt2 = sa.select(MatchReportStageScore).filter(MatchReportStageScore.calculated_hit_factor > 8.0)  # type: ignore
-        result2 = session.execute(stmt2)
-        scores_gt_8 = [r[0] for r in result2.fetchall()]
-        print(scores_gt_8)
+        stmt4 = sa.select(MatchReportStageScore).where(
+            MatchReportStageScore.calculated_hit_factor == MatchReportStageScore.hit_factor
+        )
+        result4 = session.execute(stmt4)
+        scores4 = [r[0] for r in result4.fetchall()]
+        print(f"scores where hit_factor == calculated_hit_factor: {len(scores4)}")
+
+        # stmt2 = sa.select(MatchReportStageScore).where(MatchReportStageScore.calculated_hit_factor > decimal.Decimal(8.0))  # type: ignore
+        # result2 = session.execute(stmt2)
+        # scores_gt_8 = [r[0] for r in result2.fetchall()]
+        # print(f"scores >=8: {len(scores_gt_8)}")
+
+        stmt3 = sa.select(MatchReportStageScore).where(
+            MatchReportStageScore.calculated_hit_factor != MatchReportStageScore.hit_factor
+        )
+        result3 = session.execute(stmt3)
+        scores3 = [r[0] for r in result3.fetchall()]
+        print(f"scores where hit_factor != calculated_hit_factor (SQL): {len(scores3)}")
+        score_mismatches_python = [s for s in scores3 if s.hit_factor != s.calculated_hit_factor]
+        smp = score_mismatches_python
+        print(f"scores where hit_factor != calculated_hit_factor (PYTHON): {len(smp)}")
 
         breakpoint()
 
@@ -169,6 +188,11 @@ def match_report(
         if parsed_match_report.stage_scores:
             for sc in parsed_match_report.stage_scores:
                 stage_score_model = MatchReportStageScore(  # type: ignore
+                    match=match_report,
+                    competitor=competitors[sc.competitor_id or -1],
+                    stage=stages[sc.stage_id or -1],
+                    dq=sc.dq,
+                    dnf=sc.dnf,
                     a=sc.a,
                     b=sc.b,
                     c=sc.c,
@@ -187,11 +211,13 @@ def match_report(
                     t4=sc.t4,
                     t5=sc.t5,
                     time=sc.time,
-                    dq=sc.dq,
-                    dnf=sc.dnf,
-                    match=match_report,
-                    competitor=competitors[sc.competitor_id or -1],
-                    stage=stages[sc.stage_id or -1],
+                    raw_points=sc.raw_points,
+                    penalty_points=sc.penalty_points,
+                    total_points=sc.total_points,
+                    hit_factor=sc.hit_factor,
+                    stage_points=sc.stage_points,
+                    stage_place=sc.stage_place,
+                    stage_power_factor=sc.stage_power_factor,
                 )
                 session.add(stage_score_model)
 
