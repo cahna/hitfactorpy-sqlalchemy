@@ -2,7 +2,7 @@ from pathlib import Path
 
 import psycopg2
 import pytest
-from sqlalchemy.engine.url import make_url
+from sqlalchemy.engine.url import URL, make_url
 
 
 @pytest.fixture(scope="session")
@@ -65,20 +65,7 @@ def ping_postgres(db_url):
         cur = conn.cursor()
         cur.execute("SELECT 1;")
         result = cur.fetchone()
-        if result and result[0] == 1:
-            conn.execute(
-                """SELECT EXISTS (
-SELECT FROM
-    pg_tables
-WHERE
-    schemaname = 'public' AND
-    tablename  = 'hitfactorpy_test'
-);"""
-            )
-            result2 = cur.fetchone()
-            if result2 and result2[0]:
-                return True
-        return False
+        return result and result[0] == 1
     except Exception:
         return False
     finally:
@@ -90,5 +77,6 @@ WHERE
 def postgres_service(docker_services, hitfactory_postgres_url):
     """Ensure that postgres is up and responsive"""
     url = f"postgresql://{hitfactory_postgres_url}"
+
     docker_services.wait_until_responsive(timeout=10.0, pause=0.1, check=lambda: ping_postgres(url))
-    return hitfactory_postgres_url
+    return make_url(url)

@@ -10,7 +10,6 @@ from sqlalchemy.engine.url import URL
 from .. import defaults as _defaults
 from .. import env as _env
 from ..alembic_utils import HitfactorpyAlembicConfig
-from ..session import get_sqlalchemy_url
 
 cli = typer.Typer()
 
@@ -58,7 +57,7 @@ def inject_shared_options(
         database=database,
     )
     sqlalchemy_url = str(
-        URL.create(
+        URL.create(  # type: ignore
             "postgresql+asyncpg",  # must use an async driver with this alembic config
             username=db_conn.username,
             password=db_conn.password,

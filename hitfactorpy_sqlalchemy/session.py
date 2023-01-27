@@ -14,7 +14,7 @@ def get_sqlalchemy_url(
     port: int = _defaults.HITFACTORPY_DB_PORT,
     database: str = _defaults.HITFACTORPY_DB_DATABASE_NAME,
 ):
-    return URL.create(
+    return URL.create(  # type: ignore
         scheme,
         username=username,
         password=password,

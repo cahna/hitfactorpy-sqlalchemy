@@ -61,7 +61,7 @@ def inject_shared_options(
     ctx.obj = CtxObj(
         db_connection=db_conn,
         sqlalchemy_url=str(
-            URL.create(
+            URL.create(  # type: ignore
                 db_conn.scheme,
                 username=db_conn.username,
                 password=db_conn.password,

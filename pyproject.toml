@@ -117,5 +117,6 @@ source = ["hitfactorpy_sqlalchemy"]
 
 [tool.deptry]
 ignore_obsolete = [
-  "asyncpg"
+  "asyncpg",
+  "psycopg2-binary",
 ]
