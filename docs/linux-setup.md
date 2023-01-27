@@ -23,5 +23,6 @@
 ## Development
 
 1. Install dependencies: `poetry install`
-2. Test: `poetry run tox`
-3. Build: `poetry build`
+2. Install pre-commit hooks: `pre-commit install`
+3. Test: `poetry run tox` (or `tox`, or `pytest tests`)
+4. Build: `poetry build`
