@@ -7,15 +7,13 @@ import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
 from sqlalchemy.orm.exc import DetachedInstanceError
-from sqlalchemy.sql import case
-from sqlalchemy.sql.expression import FunctionElement  # type: ignore
-from sqlalchemy.types import Numeric
 from sqlalchemy_continuum import make_versioned
+
+from .func import greatest
 
 _logger = logging.getLogger(__name__)
 
@@ -220,27 +218,6 @@ class MatchReportStage(VersionedModel):
     )
 
 
-class greatest(FunctionElement):
-    """See: https://docs.sqlalchemy.org/en/20/core/compiler.html#greatest-function"""
-
-    type = Numeric()
-    name = "greatest"
-    inherit_cache = True
-
-
-@compiles(greatest)
-def default_greatest(element, compiler, **kw):
-    return compiler.visit_function(element)
-
-
-@compiles(greatest, "sqlite")
-@compiles(greatest, "mssql")
-@compiles(greatest, "oracle")
-def case_greatest(element, compiler, **kw):
-    arg1, arg2 = list(element.clauses)
-    return compiler.process(case([(arg1 > arg2, arg1)], else_=arg2), **kw)
-
-
 class MatchReportStageScore(VersionedModel):
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
@@ -295,6 +272,8 @@ class MatchReportStageScore(VersionedModel):
 
     @hybrid_property
     def calculated_hit_factor(self):
+        if self.stage.scoring_type == Scoring.CHRONO:
+            return decimal.Decimal(self.hit_factor).quantize(decimal.Decimal(".0001"))
         return decimal.Decimal(
             max(
                 0.0,
@@ -320,41 +299,52 @@ class MatchReportStageScore(VersionedModel):
     def calculated_hit_factor(cls):
         return (
             sa.select(
-                greatest(
-                    sa.case(
-                        (
-                            sa.or_(cls.dq, cls.dnf),
-                            sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
-                        ),
-                        else_=sa.cast(
-                            (
-                                (
-                                    (cls.a * 5)
-                                    + (
-                                        cls.c
-                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3)
-                                    )
-                                    + (
-                                        cls.d
-                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1)
-                                    )
-                                    + (cls.m * -10)
-                                    + (cls.ns * -10)
-                                    + (cls.procedural * -10)
-                                    + (cls.other_penalty * -1)
-                                    + (cls.late_shot * -5)
-                                    + (cls.extra_shot * -10)
-                                    + (cls.extra_hit * -10)
-                                )
-                                / sa.case((cls.time > 0, cls.time), else_=1)
-                            ),
-                            sa.Numeric(precision=8, scale=4, decimal_return_scale=4),
-                        ),
+                sa.case(
+                    (
+                        MatchReportStage.scoring_type == Scoring.CHRONO,
+                        sa.cast(cls.hit_factor, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
                     ),
-                    sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                    else_=greatest(
+                        sa.case(
+                            (
+                                sa.or_(cls.dq, cls.dnf),
+                                sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                            ),
+                            else_=sa.cast(
+                                (
+                                    (
+                                        (cls.a * 5)
+                                        + (
+                                            cls.c
+                                            * sa.case(
+                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3
+                                            )
+                                        )
+                                        + (
+                                            cls.d
+                                            * sa.case(
+                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1
+                                            )
+                                        )
+                                        + (cls.m * -10)
+                                        + (cls.ns * -10)
+                                        + (cls.procedural * -10)
+                                        + (cls.other_penalty * -1)
+                                        + (cls.late_shot * -5)
+                                        + (cls.extra_shot * -10)
+                                        + (cls.extra_hit * -10)
+                                    )
+                                    / sa.case((cls.time > 0, cls.time), else_=1)
+                                ),
+                                sa.Numeric(precision=8, scale=4, decimal_return_scale=4),
+                            ),
+                        ),
+                        sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                    ),
                 )
             )
             .where(MatchReportCompetitor.id == cls.competitor_id)
+            .where(MatchReportStage.id == cls.stage_id)
             .label("calculated_hit_factor")
         )
 
