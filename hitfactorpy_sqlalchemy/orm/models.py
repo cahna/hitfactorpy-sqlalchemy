@@ -6,6 +6,7 @@ import uuid
 import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
+from hitfactorpy.utils import calculate_uspsa_hit_factor
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
@@ -270,30 +271,12 @@ class MatchReportStageScore(VersionedModel):
     )
     stage: Mapped[MatchReportStage] = relationship(MatchReportStage, uselist=False, back_populates="stage_scores")
 
+    def _to_dict(self):
+        return {k: getattr(self, k, None) for k in dir(self) if not k.startswith("_")}
+
     @hybrid_property
     def calculated_hit_factor(self):
-        if self.stage.scoring_type == Scoring.CHRONO:
-            return decimal.Decimal(self.hit_factor).quantize(decimal.Decimal(".0001"))
-        return decimal.Decimal(
-            max(
-                0.0,
-                0.0
-                if self.dq or self.dnf
-                else (
-                    self.a * 5
-                    + (self.c * (4 if self.competitor.power_factor == PowerFactor.MAJOR else 3))
-                    + (self.d * (2 if self.competitor.power_factor == PowerFactor.MAJOR else 1))
-                    + (self.m * -10)
-                    + (self.ns * -10)
-                    + (self.procedural * -10)
-                    + (self.other_penalty * -1)
-                    + (self.late_shot * -5)
-                    + (self.extra_shot * -10)
-                    + (self.extra_hit * -10)
-                )
-                / (self.time or 1),
-            )
-        ).quantize(decimal.Decimal(".0001"))
+        return calculate_uspsa_hit_factor(self)
 
     @calculated_hit_factor.expression  # type: ignore
     def calculated_hit_factor(cls):
@@ -307,7 +290,7 @@ class MatchReportStageScore(VersionedModel):
                     else_=greatest(
                         sa.case(
                             (
-                                sa.or_(cls.dq, cls.dnf),
+                                sa.or_(cls.dq, cls.dnf, MatchReportCompetitor.dq),
                                 sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
                             ),
                             else_=sa.cast(
@@ -317,13 +300,19 @@ class MatchReportStageScore(VersionedModel):
                                         + (
                                             cls.c
                                             * sa.case(
-                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3
+                                                (cls.stage_power_factor == PowerFactor.MAJOR, 4),
+                                                (cls.stage_power_factor == PowerFactor.MINOR, 3),
+                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4),
+                                                else_=3,
                                             )
                                         )
                                         + (
                                             cls.d
                                             * sa.case(
-                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1
+                                                (cls.stage_power_factor == PowerFactor.MAJOR, 2),
+                                                (cls.stage_power_factor == PowerFactor.MINOR, 1),
+                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2),
+                                                else_=1,
                                             )
                                         )
                                         + (cls.m * -10)
