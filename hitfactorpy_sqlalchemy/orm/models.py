@@ -275,12 +275,28 @@ class MatchReportStageScore(VersionedModel):
         return {k: getattr(self, k, None) for k in dir(self) if not k.startswith("_")}
 
     @hybrid_property
+    def calculated_power_factor(self):
+        """Power factor is reported on the competitor, by default, but some stages can override the power factor via `stage_power_factor`."""
+        return (
+            self.stage_power_factor
+            if self.stage_power_factor and self.stage_power_factor != PowerFactor.UNKNOWN
+            else self.competitor.power_factor
+        )
+
+    @calculated_power_factor.expression  # type: ignore
+    def calculated_power_factor(cls):
+        return sa.case(
+            (cls.stage_power_factor == PowerFactor.MAJOR, PowerFactor.MAJOR),
+            (cls.stage_power_factor == PowerFactor.MINOR, PowerFactor.MINOR),
+            (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, PowerFactor.MAJOR),
+            else_=PowerFactor.MINOR,
+        )
+
+    @hybrid_property
     def calculated_hit_factor(self):
         return calculate_hit_factor(
             scoring_type=self.stage.scoring_type,
-            power_factor=self.stage_power_factor
-            if self.stage_power_factor and self.stage_power_factor != PowerFactor.UNKNOWN
-            else self.competitor.power_factor,
+            power_factor=self.calculated_power_factor,
             dq=self.dq or self.competitor.dq,
             dnf=self.dnf,
             a=self.a,
@@ -319,18 +335,14 @@ class MatchReportStageScore(VersionedModel):
                                         + (
                                             cls.c
                                             * sa.case(
-                                                (cls.stage_power_factor == PowerFactor.MAJOR, 4),
-                                                (cls.stage_power_factor == PowerFactor.MINOR, 3),
-                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4),
+                                                (cls.calculated_power_factor == PowerFactor.MAJOR, 4),
                                                 else_=3,
                                             )
                                         )
                                         + (
                                             cls.d
                                             * sa.case(
-                                                (cls.stage_power_factor == PowerFactor.MAJOR, 2),
-                                                (cls.stage_power_factor == PowerFactor.MINOR, 1),
-                                                (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2),
+                                                (cls.calculated_power_factor == PowerFactor.MAJOR, 2),
                                                 else_=1,
                                             )
                                         )
@@ -388,6 +400,8 @@ class MatchReportStageScore(VersionedModel):
     @validates("hit_factor")
     def validate_hit_factor(self, key, value):
         return _validate_positive_decimal(value, key)
+
+    # __table_args__ = sa.CheckConstraint("col2 > col3 + 5", name="check1")
 
 
 sa.orm.configure_mappers()  # Must be called immediately after the last model definition

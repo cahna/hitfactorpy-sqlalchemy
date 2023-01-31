@@ -944,14 +944,14 @@ hyperframe = ">=6.0,<7"
 
 [[package]]
 name = "hitfactorpy"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python tools for parsing and analyzing practical match reports"
 category = "main"
 optional = false
 python-versions = ">=3.10,<3.12"
 files = [
-    {file = "hitfactorpy-0.1.0-py3-none-any.whl", hash = "sha256:ddffa44e69e5cbe1676067838448251f903292c0a14cd334ca2514612b6d741c"},
-    {file = "hitfactorpy-0.1.0.tar.gz", hash = "sha256:4af03a0ee893326a2834602131d774ed49cab80f53e3154a50703df01f6a6c29"},
+    {file = "hitfactorpy-0.1.1-py3-none-any.whl", hash = "sha256:3ec2afca4c90e746a3275c6c8623d9419fef7937acc5615a832f3d357a5a4aea"},
+    {file = "hitfactorpy-0.1.1.tar.gz", hash = "sha256:53b81bf9e41196d3379068eb72d3f5606abe220f419525e49579b7d53634eafa"},
 ]
 
 [package.dependencies]
@@ -2453,14 +2453,14 @@ files = [
 
 [[package]]
 name = "tox"
-version = "4.4.3"
+version = "4.4.4"
 description = "tox is a generic virtualenv management and test command line tool"
 category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tox-4.4.3-py3-none-any.whl", hash = "sha256:04ad250ceff5ca4b6b7c62b8f7839fbbde8fd656d037756c9387eec6d643a7d8"},
-    {file = "tox-4.4.3.tar.gz", hash = "sha256:2ae0ab67b0c4ca0fc3da0a8814f88ee6a94b43f5c911258c9b78e8b40591ed2b"},
+    {file = "tox-4.4.4-py3-none-any.whl", hash = "sha256:1195820ca35b141ce5ab040c9dfad8f03de6897c9bd867c6151dfb7dc58e64cd"},
+    {file = "tox-4.4.4.tar.gz", hash = "sha256:e1ef01d9e9503b1218511f74517dc3f0008c8b5e0cc53ab7f51ff3c2ca63b349"},
 ]
 
 [package.dependencies]
@@ -2612,4 +2612,4 @@ six = "*"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10,<3.12"
-content-hash = "dd6807f5856ae49a93801ec6d04bc4d9d4202a36b8e2ff6bd2f686cb17b03784"
+content-hash = "affbf8a93601ade541e36f68c0b8f1c0ddcde860250848f6b78ef88958dd937e"
