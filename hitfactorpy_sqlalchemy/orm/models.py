@@ -6,7 +6,7 @@ import uuid
 import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
-from hitfactorpy.utils import calculate_uspsa_hit_factor
+from hitfactorpy.utils import calculate_hit_factor
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
@@ -276,7 +276,26 @@ class MatchReportStageScore(VersionedModel):
 
     @hybrid_property
     def calculated_hit_factor(self):
-        return calculate_uspsa_hit_factor(self)
+        return calculate_hit_factor(
+            scoring_type=self.stage.scoring_type,
+            power_factor=self.stage_power_factor
+            if self.stage_power_factor and self.stage_power_factor != PowerFactor.UNKNOWN
+            else self.competitor.power_factor,
+            dq=self.dq or self.competitor.dq,
+            dnf=self.dnf,
+            a=self.a,
+            c=self.c,
+            d=self.d,
+            m=self.m,
+            ns=self.ns,
+            procedural=self.procedural,
+            other_penalty=self.other_penalty,
+            late_shot=self.late_shot,
+            extra_shot=self.extra_shot,
+            extra_hit=self.extra_hit,
+            time=self.time,
+            hit_factor=self.hit_factor,
+        )
 
     @calculated_hit_factor.expression  # type: ignore
     def calculated_hit_factor(cls):
