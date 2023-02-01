@@ -14,7 +14,7 @@ from sqlalchemy.orm.attributes import Mapped  # type: ignore
 from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy_continuum import make_versioned
 
-from .func import greatest
+from .expression import greatest
 
 _logger = logging.getLogger(__name__)
 
@@ -270,9 +270,6 @@ class MatchReportStageScore(VersionedModel):
         MatchReportCompetitor, uselist=False, back_populates="stage_scores"
     )
     stage: Mapped[MatchReportStage] = relationship(MatchReportStage, uselist=False, back_populates="stage_scores")
-
-    def _to_dict(self):
-        return {k: getattr(self, k, None) for k in dir(self) if not k.startswith("_")}
 
     @hybrid_property
     def calculated_power_factor(self):
