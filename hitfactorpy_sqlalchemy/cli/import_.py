@@ -1,17 +1,20 @@
-import decimal
 import hashlib
 import sys
+import uuid
 from dataclasses import dataclass
 from typing import Dict
 
 import typer
 from hitfactorpy.parsers.match_report.pandas import parse_match_report
+from rich import print
+from rich.console import Console
 from sqlalchemy.engine.url import URL
 
 from .. import defaults as _defaults
 from .. import env as _env
 
 cli = typer.Typer()
+stderr = Console(stderr=True)
 
 
 @dataclass(frozen=True)
@@ -89,7 +92,7 @@ def debug(ctx: typer.Context):
         stmt = sa.select(MatchReport)
         result = session.execute(stmt)
         match_report = result.fetchone()[0]
-        typer.echo(match_report.name)
+        print(match_report.name)
 
         num_stage_scores = session.query(sa.func.count(MatchReportStageScore.id)).scalar()
         print(f"total scores: {num_stage_scores}")
@@ -100,11 +103,6 @@ def debug(ctx: typer.Context):
         result4 = session.execute(stmt4)
         scores4 = [r[0] for r in result4.fetchall()]
         print(f"scores where hit_factor == calculated_hit_factor: {len(scores4)}")
-
-        # stmt2 = sa.select(MatchReportStageScore).where(MatchReportStageScore.calculated_hit_factor > decimal.Decimal(8.0))  # type: ignore
-        # result2 = session.execute(stmt2)
-        # scores_gt_8 = [r[0] for r in result2.fetchall()]
-        # print(f"scores >=8: {len(scores_gt_8)}")
 
         stmt3 = sa.select(MatchReportStageScore).where(
             MatchReportStageScore.calculated_hit_factor != MatchReportStageScore.hit_factor
@@ -139,11 +137,20 @@ def match_report(
 
     file_text = "\n".join(file.readlines())
     file_hash = hashlib.md5(file_text.encode()).hexdigest()
-    parsed_match_report = parse_match_report(file_text)
 
     Session = make_sync_session(config.sqlalchemy_url)
 
     with Session() as session:
+        # Check if match has already been imported
+        existing = session.query(MatchReport).where(MatchReport.report_hash == uuid.UUID(file_hash)).count()
+        if existing:
+            stderr.print("report has already been imported")
+            session.rollback()
+            session.close()
+            raise typer.Exit(1)
+
+        parsed_match_report = parse_match_report(file_text)
+
         match_report = MatchReport(  # type: ignore
             name=parsed_match_report.name,
             date=parsed_match_report.date,
@@ -220,6 +227,13 @@ def match_report(
                     stage_power_factor=sc.stage_power_factor,
                 )
                 session.add(stage_score_model)
+                if stage_score_model.calculated_hit_factor != stage_score_model.hit_factor:
+                    stderr.print(
+                        f"found score where hf({stage_score_model.hit_factor}) != calculated_hf({stage_score_model.calculated_hit_factor})"
+                    )
+                    session.rollback()
+                    session.close()
+                    raise typer.Exit(1)
 
         typer.echo("Committing changes...")
         session.commit()

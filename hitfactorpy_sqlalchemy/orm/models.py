@@ -1,19 +1,20 @@
 import decimal
 import logging
+import typing
 import uuid
 
 import inflection
 import sqlalchemy as sa
 from hitfactorpy.enums import Classification, Division, MatchLevel, PowerFactor, Scoring
+from hitfactorpy.utils import calculate_hit_factor
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
-from sqlalchemy.sql import case
-from sqlalchemy.sql.expression import FunctionElement  # type: ignore
-from sqlalchemy.types import Numeric
+from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy_continuum import make_versioned
+
+from .expression import greatest
 
 _logger = logging.getLogger(__name__)
 
@@ -27,7 +28,13 @@ ENUM_PREFIX = "HITFACTORPY_ENUM_"
 
 def _validate_positive_int(value: int, name: str):
     if not value >= 0:
-        raise ValueError(f'value for  "{name}" must be >=0, but received: {value}')
+        raise ValueError(f'value for "{name}" must be >=0, but received: {value}')
+    return value
+
+
+def _validate_positive_decimal(value: int | float | decimal.Decimal, name: str):
+    if not value >= 0.0:
+        raise ValueError(f'value for "{name}" must be >=0.0, but received: {value}')
     return value
 
 
@@ -74,6 +81,26 @@ class MixinIds:
 
 class BaseModel(SABaseModel, MixinIds):  # type: ignore
     __abstract__ = True
+
+    def __repr__(self) -> str:
+        return self._repr(id=self.id)  # type: ignore
+
+    def _repr(self, **fields: typing.Dict[str, typing.Any]) -> str:
+        """
+        Helper for __repr__: https://stackoverflow.com/a/55749579
+        """
+        field_strings = []
+        at_least_one_attached_attribute = False
+        for key, field in fields.items():
+            try:
+                field_strings.append(f"{key}={field!r}")
+            except DetachedInstanceError:
+                field_strings.append(f"{key}=DetachedInstanceError")
+            else:
+                at_least_one_attached_attribute = True
+        if at_least_one_attached_attribute:
+            return f"<{self.__class__.__name__}({','.join(field_strings)})>"
+        return f"<{self.__class__.__name__} {id(self)}>"
 
 
 class VersionedModel(BaseModel):  # , MixinVersioned):
@@ -192,27 +219,6 @@ class MatchReportStage(VersionedModel):
     )
 
 
-class greatest(FunctionElement):
-    """See: https://docs.sqlalchemy.org/en/20/core/compiler.html#greatest-function"""
-
-    type = Numeric()
-    name = "greatest"
-    inherit_cache = True
-
-
-@compiles(greatest)
-def default_greatest(element, compiler, **kw):
-    return compiler.visit_function(element)
-
-
-@compiles(greatest, "sqlite")
-@compiles(greatest, "mssql")
-@compiles(greatest, "oracle")
-def case_greatest(element, compiler, **kw):
-    arg1, arg2 = list(element.clauses)
-    return compiler.process(case([(arg1 > arg2, arg1)], else_=arg2), **kw)
-
-
 class MatchReportStageScore(VersionedModel):
     # Columns
     match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
@@ -266,67 +272,96 @@ class MatchReportStageScore(VersionedModel):
     stage: Mapped[MatchReportStage] = relationship(MatchReportStage, uselist=False, back_populates="stage_scores")
 
     @hybrid_property
+    def calculated_power_factor(self):
+        """Power factor is reported on the competitor, by default, but some stages can override the power factor via `stage_power_factor`."""
+        return (
+            self.stage_power_factor
+            if self.stage_power_factor and self.stage_power_factor != PowerFactor.UNKNOWN
+            else self.competitor.power_factor
+        )
+
+    @calculated_power_factor.expression  # type: ignore
+    def calculated_power_factor(cls):
+        return sa.case(
+            (cls.stage_power_factor == PowerFactor.MAJOR, PowerFactor.MAJOR),
+            (cls.stage_power_factor == PowerFactor.MINOR, PowerFactor.MINOR),
+            (MatchReportCompetitor.power_factor == PowerFactor.MAJOR, PowerFactor.MAJOR),
+            else_=PowerFactor.MINOR,
+        )
+
+    @hybrid_property
     def calculated_hit_factor(self):
-        return decimal.Decimal(
-            max(
-                0.0,
-                0.0
-                if self.dq or self.dnf
-                else (
-                    self.a * 5
-                    + (self.c * (4 if self.competitor.power_factor == PowerFactor.MAJOR else 3))
-                    + (self.d * (2 if self.competitor.power_factor == PowerFactor.MAJOR else 1))
-                    + (self.m * -10)
-                    + (self.ns * -10)
-                    + (self.procedural * -10)
-                    + (self.other_penalty * -1)
-                    + (self.late_shot * -5)
-                    + (self.extra_shot * -10)
-                    + (self.extra_hit * -10)
-                )
-                / (self.time or 1),
-            )
-        ).quantize(decimal.Decimal(".0001"))
+        return calculate_hit_factor(
+            scoring_type=self.stage.scoring_type,
+            power_factor=self.calculated_power_factor,
+            dq=self.dq or self.competitor.dq,
+            dnf=self.dnf,
+            a=self.a,
+            c=self.c,
+            d=self.d,
+            m=self.m,
+            ns=self.ns,
+            procedural=self.procedural,
+            other_penalty=self.other_penalty,
+            late_shot=self.late_shot,
+            extra_shot=self.extra_shot,
+            extra_hit=self.extra_hit,
+            time=self.time,
+            hit_factor=self.hit_factor,
+        )
 
     @calculated_hit_factor.expression  # type: ignore
     def calculated_hit_factor(cls):
         return (
             sa.select(
-                greatest(
-                    sa.case(
-                        (
-                            sa.or_(cls.dq, cls.dnf),
-                            sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
-                        ),
-                        else_=sa.cast(
-                            (
-                                (
-                                    (cls.a * 5)
-                                    + (
-                                        cls.c
-                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 4), else_=3)
-                                    )
-                                    + (
-                                        cls.d
-                                        * sa.case((MatchReportCompetitor.power_factor == PowerFactor.MAJOR, 2), else_=1)
-                                    )
-                                    + (cls.m * -10)
-                                    + (cls.ns * -10)
-                                    + (cls.procedural * -10)
-                                    + (cls.other_penalty * -1)
-                                    + (cls.late_shot * -5)
-                                    + (cls.extra_shot * -10)
-                                    + (cls.extra_hit * -10)
-                                )
-                                / sa.case((cls.time > 0, cls.time), else_=1)
-                            ),
-                            sa.Numeric(precision=8, scale=4, decimal_return_scale=4),
-                        ),
+                sa.case(
+                    (
+                        MatchReportStage.scoring_type == Scoring.CHRONO,
+                        sa.cast(cls.hit_factor, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
                     ),
-                    sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                    else_=greatest(
+                        sa.case(
+                            (
+                                sa.or_(cls.dq, cls.dnf, MatchReportCompetitor.dq),
+                                sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                            ),
+                            else_=sa.cast(
+                                (
+                                    (
+                                        (cls.a * 5)
+                                        + (
+                                            cls.c
+                                            * sa.case(
+                                                (cls.calculated_power_factor == PowerFactor.MAJOR, 4),
+                                                else_=3,
+                                            )
+                                        )
+                                        + (
+                                            cls.d
+                                            * sa.case(
+                                                (cls.calculated_power_factor == PowerFactor.MAJOR, 2),
+                                                else_=1,
+                                            )
+                                        )
+                                        + (cls.m * -10)
+                                        + (cls.ns * -10)
+                                        + (cls.procedural * -10)
+                                        + (cls.other_penalty * -1)
+                                        + (cls.late_shot * -5)
+                                        + (cls.extra_shot * -10)
+                                        + (cls.extra_hit * -10)
+                                    )
+                                    / sa.case((cls.time > 0, cls.time), else_=1)
+                                ),
+                                sa.Numeric(precision=8, scale=4, decimal_return_scale=4),
+                            ),
+                        ),
+                        sa.cast(0.0, sa.Numeric(precision=8, scale=4, decimal_return_scale=4)),
+                    ),
                 )
             )
             .where(MatchReportCompetitor.id == cls.competitor_id)
+            .where(MatchReportStage.id == cls.stage_id)
             .label("calculated_hit_factor")
         )
 
@@ -358,6 +393,12 @@ class MatchReportStageScore(VersionedModel):
     @validates("npm")
     def validate_npm(self, key, value):
         return _validate_positive_int(value, key)
+
+    @validates("hit_factor")
+    def validate_hit_factor(self, key, value):
+        return _validate_positive_decimal(value, key)
+
+    # __table_args__ = sa.CheckConstraint("col2 > col3 + 5", name="check1")
 
 
 sa.orm.configure_mappers()  # Must be called immediately after the last model definition
