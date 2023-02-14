@@ -192,11 +192,7 @@ class MatchReportStage(VersionedModel):
     classifier = sa.Column(sa.Boolean, nullable=False, default=False)
     classifier_number = sa.Column(sa.Unicode(64))
     stage_number = sa.Column(sa.Integer)
-    scoring_type = sa.Column(
-        SAEnumScoring,
-        nullable=False,
-        default=Scoring.COMSTOCK,
-    )
+    scoring_type = sa.Column(SAEnumScoring, nullable=False, default=Scoring.COMSTOCK)
 
     # relationships
     match: Mapped[MatchReport] = relationship(MatchReport, uselist=False, back_populates="stages")
@@ -370,8 +366,8 @@ class MatchReportStageScore(VersionedModel):
                     ),
                 )
             )
-            .where(MatchReportCompetitor.id == cls.competitor_id)
-            .where(MatchReportStage.id == cls.stage_id)
+            .where(MatchReportCompetitor.internal_id == cls.competitor_internal_id)
+            .where(MatchReportStage.internal_id == cls.stage_internal_id)
             .label("calculated_hit_factor")
         )
 
