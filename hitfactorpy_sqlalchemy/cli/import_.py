@@ -2,9 +2,11 @@ import hashlib
 import sys
 import uuid
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Dict
 
 import typer
+from hitfactorpy.decimal_ import D4
 from hitfactorpy.parsers.match_report.pandas import parse_match_report
 from rich import print
 from rich.console import Console
@@ -227,7 +229,7 @@ def match_report(
                     stage_power_factor=sc.stage_power_factor,
                 )
                 session.add(stage_score_model)
-                if stage_score_model.calculated_hit_factor != stage_score_model.hit_factor:
+                if stage_score_model.calculated_hit_factor != D4(stage_score_model.hit_factor):
                     stderr.print(
                         f"found score where hf({stage_score_model.hit_factor}) != calculated_hf({stage_score_model.calculated_hit_factor})"
                     )

@@ -63,13 +63,13 @@ class MixinVersioned:
 class MixinIds:
     """Mixin columns for a database-internal id as the primary key, and a public uuid"""
 
-    id = sa.Column(
+    internal_id = sa.Column(
         sa.Integer,
         primary_key=True,
         autoincrement=True,
         comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
     )
-    uuid = sa.Column(
+    id = sa.Column(
         UUID(as_uuid=True),
         nullable=False,
         unique=True,
@@ -136,21 +136,21 @@ class MatchReport(VersionedModel):
         back_populates="match",
         cascade="all, delete",
         passive_deletes=True,
-        primaryjoin="MatchReport.id==MatchReportCompetitor.match_id",
+        primaryjoin="MatchReport.internal_id==MatchReportCompetitor.match_internal_id",
     )
     stages: Mapped["MatchReportStage"] = relationship(
         "MatchReportStage",
         back_populates="match",
         cascade="all, delete",
         passive_deletes=True,
-        primaryjoin="MatchReport.id==MatchReportStage.match_id",
+        primaryjoin="MatchReport.internal_id==MatchReportStage.match_internal_id",
     )
     stage_scores: Mapped["MatchReportStageScore"] = relationship(
         "MatchReportStageScore",
         back_populates="match",
         cascade="all, delete",
         passive_deletes=True,
-        primaryjoin="MatchReport.id==MatchReportStageScore.match_id",
+        primaryjoin="MatchReport.internal_id==MatchReportStageScore.match_internal_id",
     )
 
     # Validators
@@ -164,7 +164,9 @@ class MatchReport(VersionedModel):
 
 class MatchReportCompetitor(VersionedModel):
     # Columns
-    match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
+    match_internal_id = sa.Column(
+        sa.Integer, sa.ForeignKey(MatchReport.internal_id, ondelete="CASCADE"), nullable=False
+    )
     member_number = sa.Column(sa.Unicode(64))
     first_name = sa.Column(sa.Unicode(64))
     last_name = sa.Column(sa.Unicode(64))
@@ -181,7 +183,9 @@ class MatchReportCompetitor(VersionedModel):
 
 class MatchReportStage(VersionedModel):
     # Columns
-    match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
+    match_internal_id = sa.Column(
+        sa.Integer, sa.ForeignKey(MatchReport.internal_id, ondelete="CASCADE"), nullable=False
+    )
     name = sa.Column(sa.Unicode(255))
     min_rounds = sa.Column(sa.Integer, nullable=False)
     max_points = sa.Column(sa.Integer, nullable=False)
@@ -201,7 +205,7 @@ class MatchReportStage(VersionedModel):
         back_populates="stage",
         cascade="all, delete",
         passive_deletes=True,
-        primaryjoin="MatchReportStage.id==MatchReportStageScore.stage_id",
+        primaryjoin="MatchReportStage.internal_id==MatchReportStageScore.stage_internal_id",
     )
 
     # Validators
@@ -215,15 +219,21 @@ class MatchReportStage(VersionedModel):
 
     # Constraints
     __table_args__ = (
-        (sa.UniqueConstraint("match_id", "stage_number", name="stage_score_stage_number_unique_per_match")),
+        (sa.UniqueConstraint("match_internal_id", "stage_number", name="stage_score_stage_number_unique_per_match")),
     )
 
 
 class MatchReportStageScore(VersionedModel):
     # Columns
-    match_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReport.id, ondelete="CASCADE"), nullable=False)
-    competitor_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReportCompetitor.id, ondelete="CASCADE"), nullable=False)
-    stage_id = sa.Column(sa.Integer, sa.ForeignKey(MatchReportStage.id, ondelete="CASCADE"), nullable=False)
+    match_internal_id = sa.Column(
+        sa.Integer, sa.ForeignKey(MatchReport.internal_id, ondelete="CASCADE"), nullable=False
+    )
+    competitor_internal_id = sa.Column(
+        sa.Integer, sa.ForeignKey(MatchReportCompetitor.internal_id, ondelete="CASCADE"), nullable=False
+    )
+    stage_internal_id = sa.Column(
+        sa.Integer, sa.ForeignKey(MatchReportStage.internal_id, ondelete="CASCADE"), nullable=False
+    )
     dq = sa.Column(sa.Boolean, nullable=False, default=False)
     dnf = sa.Column(sa.Boolean, nullable=False, default=False)
     a = sa.Column(sa.Integer, nullable=False, default=0)
