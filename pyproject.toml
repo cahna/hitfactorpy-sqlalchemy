@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hitfactorpy_sqlalchemy"
-version = "0.0.4"
+version = "0.0.5"
 description = "Manage practical match reports with SQLAlchemy"
 authors = ["Conor Heine <conor.heine@gmail.com>"]
 readme = "README.md"
