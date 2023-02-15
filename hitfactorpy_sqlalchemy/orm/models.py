@@ -11,8 +11,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, validates  # type: ignore
 from sqlalchemy.orm.attributes import Mapped  # type: ignore
-from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy_continuum import make_versioned
+from sqlalchemy_utils import Timestamp, generic_repr
 
 from .expression import greatest
 
@@ -23,7 +23,7 @@ make_versioned(user_cls=None)
 """
 https://docs.sqlalchemy.org/en/20/core/type_basics.html#sqlalchemy.types.Enum.params.name
 """
-ENUM_PREFIX = "HITFACTORPY_ENUM_"
+ENUM_PREFIX = "HFPY_ENUM_"
 
 
 def _validate_positive_int(value: int, name: str):
@@ -79,31 +79,12 @@ class MixinIds:
     )
 
 
-class BaseModel(SABaseModel, MixinIds):  # type: ignore
+@generic_repr
+class BaseModel(SABaseModel, MixinIds, Timestamp):  # type: ignore
     __abstract__ = True
 
-    def __repr__(self) -> str:
-        return self._repr(id=self.id)  # type: ignore
 
-    def _repr(self, **fields: typing.Dict[str, typing.Any]) -> str:
-        """
-        Helper for __repr__: https://stackoverflow.com/a/55749579
-        """
-        field_strings = []
-        at_least_one_attached_attribute = False
-        for key, field in fields.items():
-            try:
-                field_strings.append(f"{key}={field!r}")
-            except DetachedInstanceError:
-                field_strings.append(f"{key}=DetachedInstanceError")
-            else:
-                at_least_one_attached_attribute = True
-        if at_least_one_attached_attribute:
-            return f"<{self.__class__.__name__}({','.join(field_strings)})>"
-        return f"<{self.__class__.__name__} {id(self)}>"
-
-
-class VersionedModel(BaseModel):  # , MixinVersioned):
+class VersionedModel(BaseModel, MixinVersioned):
     __abstract__ = True
 
 
@@ -403,8 +384,6 @@ class MatchReportStageScore(VersionedModel):
     @validates("hit_factor")
     def validate_hit_factor(self, key, value):
         return _validate_positive_decimal(value, key)
-
-    # __table_args__ = sa.CheckConstraint("col2 > col3 + 5", name="check1")
 
 
 sa.orm.configure_mappers()  # Must be called immediately after the last model definition
