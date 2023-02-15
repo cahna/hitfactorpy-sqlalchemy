@@ -2,7 +2,6 @@ import hashlib
 import sys
 import uuid
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Dict
 
 import typer

@@ -1,6 +1,5 @@
 import decimal
 import logging
-import typing
 import uuid
 
 import inflection
