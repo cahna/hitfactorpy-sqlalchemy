@@ -24,11 +24,13 @@ def get_sqlalchemy_url(
     )
 
 
-def make_async_session(sqlalchemy_url: str):
-    engine = create_async_engine(sqlalchemy_url)
+def make_async_session(sqlalchemy_url: str, *args, **kwargs):
+    """Any additional args/kwargs are passed to `create_async_engine()`"""
+    engine = create_async_engine(sqlalchemy_url, *args, **kwargs)
     return sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
 
 
-def make_sync_session(sqlalchemy_url: str):
-    engine = create_engine(sqlalchemy_url)
+def make_sync_session(sqlalchemy_url: str, *args, **kwargs):
+    """Any additional args/kwargs are passed to `create_engine()`"""
+    engine = create_engine(sqlalchemy_url, *args, **kwargs)
     return sessionmaker(bind=engine)
