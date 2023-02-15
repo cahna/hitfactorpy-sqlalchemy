@@ -2504,6 +2504,21 @@ doc = ["cairosvg (>=2.5.2,<3.0.0)", "mdx-include (>=1.4.1,<2.0.0)", "mkdocs (>=1
 test = ["black (>=22.3.0,<23.0.0)", "coverage (>=6.2,<7.0)", "isort (>=5.0.6,<6.0.0)", "mypy (==0.910)", "pytest (>=4.4.0,<8.0.0)", "pytest-cov (>=2.10.0,<5.0.0)", "pytest-sugar (>=0.9.4,<0.10.0)", "pytest-xdist (>=1.32.0,<4.0.0)", "rich (>=10.11.0,<13.0.0)", "shellingham (>=1.3.0,<2.0.0)"]
 
 [[package]]
+name = "types-sqlalchemy-utils"
+version = "1.0.1"
+description = "Type Stubs for sqlalchemy-utils"
+category = "dev"
+optional = false
+python-versions = ">=3.7, <4"
+files = [
+    {file = "types-sqlalchemy-utils-1.0.1.tar.gz", hash = "sha256:37016333faa0abab7d253805ecf9f605c24ea107b32dd3643014efb8e49be76d"},
+    {file = "types_sqlalchemy_utils-1.0.1-py3-none-any.whl", hash = "sha256:95bc90db15ec4af5b13d64f04a7d31a7e851931250419fc7859354644ab3ea98"},
+]
+
+[package.extras]
+dev = ["mypy (==0.971)", "pipenv-setup (==3.2.0)", "sqlalchemy-utils (==0.38.3)", "sqlalchemy2-stubs (==0.0.2a25)", "twine (==4.0.1)"]
+
+[[package]]
 name = "typing-extensions"
 version = "4.4.0"
 description = "Backported and Experimental Type Hints for Python 3.7+"
@@ -2612,4 +2627,4 @@ six = "*"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10,<3.12"
-content-hash = "377443b26d49889d678faddb997ada554dcdc74f22e43dee9b053f8bce04d761"
+content-hash = "86fd8953cfd568e075cc47f699fde0c669d3bd955c758794504e9802dbd02237"

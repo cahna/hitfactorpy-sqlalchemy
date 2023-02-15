@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hitfactorpy_sqlalchemy"
-version = "0.0.5"
+version = "0.0.6"
 description = "Manage practical match reports with SQLAlchemy"
 authors = ["Conor Heine <conor.heine@gmail.com>"]
 readme = "README.md"
@@ -54,6 +54,7 @@ mdx-include = "^1.4.2"
 sqlalchemy-stubs = "^0.4"
 pytest-docker = "^1.0.1"
 docker-compose = "^1.29.2"
+types-sqlalchemy-utils = "^1.0.1"
 
 [tool.poetry.group.docs]
 optional = true
@@ -98,6 +99,9 @@ exclude = '''
   )/
 )
 '''
+
+[tool.autoflake]
+check = true
 
 [tool.isort]
 profile = "black"
