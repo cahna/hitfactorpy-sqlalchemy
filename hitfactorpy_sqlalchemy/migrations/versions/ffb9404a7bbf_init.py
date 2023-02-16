@@ -1,8 +1,8 @@
 """init
 
-Revision ID: f5651eb1eb57
+Revision ID: ffb9404a7bbf
 Revises: 
-Create Date: 2023-02-15 13:19:09.093633
+Create Date: 2023-02-15 17:57:58.221529
 
 """  # noqa: W291
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "f5651eb1eb57"
+revision = "ffb9404a7bbf"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -30,20 +30,7 @@ def upgrade() -> None:
         "match_report",
         sa.Column("created", sa.DateTime(), nullable=False),
         sa.Column("updated", sa.DateTime(), nullable=False),
-        sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=True,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-            comment="ID exposed in public APIs",
-        ),
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("name", sa.Unicode(length=255), nullable=False),
         sa.Column("date", sa.Date(), nullable=True),
         sa.Column("match_level", SAEnumMatchLevel, nullable=True),
@@ -53,30 +40,21 @@ def upgrade() -> None:
             nullable=True,
             comment="This represents an md5 hexdigest, stored as a UUID. Used to identify potential duplicate report imports.",
         ),
-        sa.PrimaryKeyConstraint("internal_id"),
+        sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("report_hash"),
     )
-    op.create_index(op.f("ix_match_report_id"), "match_report", ["id"], unique=True)
     op.create_table(
         "match_report_competitor_version",
         sa.Column("created", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column("updated", sa.DateTime(), autoincrement=False, nullable=False),
-        sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=False,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
         sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
             server_default=sa.text("gen_random_uuid()"),
             autoincrement=False,
             nullable=False,
-            comment="ID exposed in public APIs",
         ),
-        sa.Column("match_internal_id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), autoincrement=False, nullable=False),
         sa.Column("member_number", sa.Unicode(length=64), autoincrement=False, nullable=True),
         sa.Column("first_name", sa.Unicode(length=64), autoincrement=False, nullable=True),
         sa.Column("last_name", sa.Unicode(length=64), autoincrement=False, nullable=True),
@@ -88,16 +66,13 @@ def upgrade() -> None:
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.PrimaryKeyConstraint("internal_id", "transaction_id"),
+        sa.PrimaryKeyConstraint("id", "transaction_id"),
     )
     op.create_index(
         op.f("ix_match_report_competitor_version_end_transaction_id"),
         "match_report_competitor_version",
         ["end_transaction_id"],
         unique=False,
-    )
-    op.create_index(
-        op.f("ix_match_report_competitor_version_id"), "match_report_competitor_version", ["id"], unique=False
     )
     op.create_index(
         op.f("ix_match_report_competitor_version_operation_type"),
@@ -116,23 +91,15 @@ def upgrade() -> None:
         sa.Column("created", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column("updated", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=False,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
             server_default=sa.text("gen_random_uuid()"),
             autoincrement=False,
             nullable=False,
-            comment="ID exposed in public APIs",
         ),
-        sa.Column("match_internal_id", sa.Integer(), autoincrement=False, nullable=False),
-        sa.Column("competitor_internal_id", sa.Integer(), autoincrement=False, nullable=False),
-        sa.Column("stage_internal_id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), autoincrement=False, nullable=False),
+        sa.Column("competitor_id", postgresql.UUID(as_uuid=True), autoincrement=False, nullable=False),
+        sa.Column("stage_id", postgresql.UUID(as_uuid=True), autoincrement=False, nullable=False),
         sa.Column("dq", sa.Boolean(), autoincrement=False, nullable=False),
         sa.Column("dnf", sa.Boolean(), autoincrement=False, nullable=False),
         sa.Column("a", sa.Integer(), autoincrement=False, nullable=False),
@@ -178,16 +145,13 @@ def upgrade() -> None:
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.PrimaryKeyConstraint("internal_id", "transaction_id"),
+        sa.PrimaryKeyConstraint("id", "transaction_id"),
     )
     op.create_index(
         op.f("ix_match_report_stage_score_version_end_transaction_id"),
         "match_report_stage_score_version",
         ["end_transaction_id"],
         unique=False,
-    )
-    op.create_index(
-        op.f("ix_match_report_stage_score_version_id"), "match_report_stage_score_version", ["id"], unique=False
     )
     op.create_index(
         op.f("ix_match_report_stage_score_version_operation_type"),
@@ -206,21 +170,13 @@ def upgrade() -> None:
         sa.Column("created", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column("updated", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=False,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
             server_default=sa.text("gen_random_uuid()"),
             autoincrement=False,
             nullable=False,
-            comment="ID exposed in public APIs",
         ),
-        sa.Column("match_internal_id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), autoincrement=False, nullable=False),
         sa.Column("name", sa.Unicode(length=255), autoincrement=False, nullable=True),
         sa.Column("min_rounds", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("max_points", sa.Integer(), autoincrement=False, nullable=False),
@@ -231,7 +187,7 @@ def upgrade() -> None:
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.PrimaryKeyConstraint("internal_id", "transaction_id"),
+        sa.PrimaryKeyConstraint("id", "transaction_id"),
     )
     op.create_index(
         op.f("ix_match_report_stage_version_end_transaction_id"),
@@ -239,7 +195,6 @@ def upgrade() -> None:
         ["end_transaction_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_match_report_stage_version_id"), "match_report_stage_version", ["id"], unique=False)
     op.create_index(
         op.f("ix_match_report_stage_version_operation_type"),
         "match_report_stage_version",
@@ -257,19 +212,11 @@ def upgrade() -> None:
         sa.Column("created", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column("updated", sa.DateTime(), autoincrement=False, nullable=False),
         sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=False,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
             "id",
             postgresql.UUID(as_uuid=True),
             server_default=sa.text("gen_random_uuid()"),
             autoincrement=False,
             nullable=False,
-            comment="ID exposed in public APIs",
         ),
         sa.Column("name", sa.Unicode(length=255), autoincrement=False, nullable=False),
         sa.Column("date", sa.Date(), autoincrement=False, nullable=True),
@@ -284,12 +231,11 @@ def upgrade() -> None:
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.PrimaryKeyConstraint("internal_id", "transaction_id"),
+        sa.PrimaryKeyConstraint("id", "transaction_id"),
     )
     op.create_index(
         op.f("ix_match_report_version_end_transaction_id"), "match_report_version", ["end_transaction_id"], unique=False
     )
-    op.create_index(op.f("ix_match_report_version_id"), "match_report_version", ["id"], unique=False)
     op.create_index(
         op.f("ix_match_report_version_operation_type"), "match_report_version", ["operation_type"], unique=False
     )
@@ -307,21 +253,8 @@ def upgrade() -> None:
         "match_report_competitor",
         sa.Column("created", sa.DateTime(), nullable=False),
         sa.Column("updated", sa.DateTime(), nullable=False),
-        sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=True,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-            comment="ID exposed in public APIs",
-        ),
-        sa.Column("match_internal_id", sa.Integer(), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("member_number", sa.Unicode(length=64), nullable=True),
         sa.Column("first_name", sa.Unicode(length=64), nullable=True),
         sa.Column("last_name", sa.Unicode(length=64), nullable=True),
@@ -330,29 +263,15 @@ def upgrade() -> None:
         sa.Column("power_factor", SAEnumPowerFactor, nullable=True),
         sa.Column("dq", sa.Boolean(), nullable=False),
         sa.Column("reentry", sa.Boolean(), nullable=False),
-        sa.ForeignKeyConstraint(["match_internal_id"], ["match_report.internal_id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("internal_id"),
+        sa.ForeignKeyConstraint(["match_id"], ["match_report.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_match_report_competitor_id"), "match_report_competitor", ["id"], unique=True)
     op.create_table(
         "match_report_stage",
         sa.Column("created", sa.DateTime(), nullable=False),
         sa.Column("updated", sa.DateTime(), nullable=False),
-        sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=True,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-            comment="ID exposed in public APIs",
-        ),
-        sa.Column("match_internal_id", sa.Integer(), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.Unicode(length=255), nullable=True),
         sa.Column("min_rounds", sa.Integer(), nullable=False),
         sa.Column("max_points", sa.Integer(), nullable=False),
@@ -360,32 +279,18 @@ def upgrade() -> None:
         sa.Column("classifier_number", sa.Unicode(length=64), nullable=True),
         sa.Column("stage_number", sa.Integer(), nullable=True),
         sa.Column("scoring_type", SAEnumScoring, nullable=False),
-        sa.ForeignKeyConstraint(["match_internal_id"], ["match_report.internal_id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("internal_id"),
-        sa.UniqueConstraint("match_internal_id", "stage_number", name="stage_score_stage_number_unique_per_match"),
+        sa.ForeignKeyConstraint(["match_id"], ["match_report.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("match_id", "stage_number", name="stage_score_stage_number_unique_per_match"),
     )
-    op.create_index(op.f("ix_match_report_stage_id"), "match_report_stage", ["id"], unique=True)
     op.create_table(
         "match_report_stage_score",
         sa.Column("created", sa.DateTime(), nullable=False),
         sa.Column("updated", sa.DateTime(), nullable=False),
-        sa.Column(
-            "internal_id",
-            sa.Integer(),
-            autoincrement=True,
-            nullable=False,
-            comment="Internal ID to be used as PK and FKs. Do not expose in public APIs",
-        ),
-        sa.Column(
-            "id",
-            postgresql.UUID(as_uuid=True),
-            server_default=sa.text("gen_random_uuid()"),
-            nullable=False,
-            comment="ID exposed in public APIs",
-        ),
-        sa.Column("match_internal_id", sa.Integer(), nullable=False),
-        sa.Column("competitor_internal_id", sa.Integer(), nullable=False),
-        sa.Column("stage_internal_id", sa.Integer(), nullable=False),
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("match_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("competitor_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("stage_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("dq", sa.Boolean(), nullable=False),
         sa.Column("dnf", sa.Boolean(), nullable=False),
         sa.Column("a", sa.Integer(), nullable=False),
@@ -413,14 +318,11 @@ def upgrade() -> None:
         sa.Column("stage_points", sa.Numeric(precision=8, scale=4, decimal_return_scale=4), nullable=True),
         sa.Column("stage_place", sa.Integer(), nullable=True),
         sa.Column("stage_power_factor", SAEnumPowerFactor, nullable=True),
-        sa.ForeignKeyConstraint(
-            ["competitor_internal_id"], ["match_report_competitor.internal_id"], ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(["match_internal_id"], ["match_report.internal_id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["stage_internal_id"], ["match_report_stage.internal_id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("internal_id"),
+        sa.ForeignKeyConstraint(["competitor_id"], ["match_report_competitor.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["match_id"], ["match_report.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["stage_id"], ["match_report_stage.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_match_report_stage_score_id"), "match_report_stage_score", ["id"], unique=True)
     # ### end Alembic commands ###
 
 
@@ -434,21 +336,16 @@ def downgrade() -> None:
         SAEnumScoring,
     )
 
-    op.drop_index(op.f("ix_match_report_stage_score_id"), table_name="match_report_stage_score")
     op.drop_table("match_report_stage_score")
-    op.drop_index(op.f("ix_match_report_stage_id"), table_name="match_report_stage")
     op.drop_table("match_report_stage")
-    op.drop_index(op.f("ix_match_report_competitor_id"), table_name="match_report_competitor")
     op.drop_table("match_report_competitor")
     op.drop_table("transaction")
     op.drop_index(op.f("ix_match_report_version_transaction_id"), table_name="match_report_version")
     op.drop_index(op.f("ix_match_report_version_operation_type"), table_name="match_report_version")
-    op.drop_index(op.f("ix_match_report_version_id"), table_name="match_report_version")
     op.drop_index(op.f("ix_match_report_version_end_transaction_id"), table_name="match_report_version")
     op.drop_table("match_report_version")
     op.drop_index(op.f("ix_match_report_stage_version_transaction_id"), table_name="match_report_stage_version")
     op.drop_index(op.f("ix_match_report_stage_version_operation_type"), table_name="match_report_stage_version")
-    op.drop_index(op.f("ix_match_report_stage_version_id"), table_name="match_report_stage_version")
     op.drop_index(op.f("ix_match_report_stage_version_end_transaction_id"), table_name="match_report_stage_version")
     op.drop_table("match_report_stage_version")
     op.drop_index(
@@ -457,7 +354,6 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_match_report_stage_score_version_operation_type"), table_name="match_report_stage_score_version"
     )
-    op.drop_index(op.f("ix_match_report_stage_score_version_id"), table_name="match_report_stage_score_version")
     op.drop_index(
         op.f("ix_match_report_stage_score_version_end_transaction_id"), table_name="match_report_stage_score_version"
     )
@@ -468,12 +364,10 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_match_report_competitor_version_operation_type"), table_name="match_report_competitor_version"
     )
-    op.drop_index(op.f("ix_match_report_competitor_version_id"), table_name="match_report_competitor_version")
     op.drop_index(
         op.f("ix_match_report_competitor_version_end_transaction_id"), table_name="match_report_competitor_version"
     )
     op.drop_table("match_report_competitor_version")
-    op.drop_index(op.f("ix_match_report_id"), table_name="match_report")
     op.drop_table("match_report")
 
     SAEnumMatchLevel.drop(op.get_bind())
