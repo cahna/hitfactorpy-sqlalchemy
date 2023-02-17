@@ -100,6 +100,12 @@ class MatchReport(VersionedModel):
         unique=True,
         comment="This represents an md5 hexdigest, stored as a UUID. Used to identify potential duplicate report imports.",
     )
+    platform = sa.Column(sa.Unicode())
+    ps_product = sa.Column(sa.Unicode())
+    ps_version = sa.Column(sa.Unicode())
+    club_name = sa.Column(sa.Unicode())
+    club_code = sa.Column(sa.Unicode())
+    region = sa.Column(sa.Unicode())
 
     # Relationships
     competitors: Mapped["MatchReportCompetitor"] = relationship(
