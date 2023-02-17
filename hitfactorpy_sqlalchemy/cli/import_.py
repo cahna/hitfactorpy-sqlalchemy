@@ -157,6 +157,12 @@ def match_report(
             date=parsed_match_report.date,
             match_level=parsed_match_report.match_level,
             report_hash=file_hash,
+            platform=parsed_match_report.platform,
+            ps_product=parsed_match_report.ps_product,
+            ps_version=parsed_match_report.ps_version,
+            club_code=parsed_match_report.club_code,
+            club_name=parsed_match_report.club_name,
+            region=parsed_match_report.region,
         )
         session.add(match_report)
 
